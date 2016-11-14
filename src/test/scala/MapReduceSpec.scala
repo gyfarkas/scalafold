@@ -19,7 +19,7 @@ class MapReduceSpec extends WordSpec with Matchers {
   }
 
   "fold over stuff" in {
-    val f = Fold((x: SomeThing) => x, (x: SomeThing) => x)(implicitly[Monoid[SomeThing]])
+    val f = Fold((x: SomeThing) => x, (x: SomeThing) => x)
     val result = f.fold(List(SomeThing(1, 3.2), SomeThing(2, 4.5)))
     result shouldEqual SomeThing(3, 7.7)
   }
@@ -27,7 +27,7 @@ class MapReduceSpec extends WordSpec with Matchers {
   "mapping" when {
 
     "provide tally and summarize with appropriate monoid" in {
-      val f = Fold((x: SomeThing) => x.i, ((x: Int) => x))
+      val f = Fold((x: SomeThing) => x.i, (x: Int) => x)
       f.fold(List(SomeThing(1, 3.2), SomeThing(2, 4.5))) shouldEqual 3
     }
 
@@ -48,13 +48,26 @@ class MapReduceSpec extends WordSpec with Matchers {
     }
 
     "applicative average" in {
-      val sum = Fold((x: Int) => x, (x: Int) => x)
-
-      def length[A] = Fold((_: A) => 1, (x: Int) => x)
+      val sum = Fold((x: Int) => x.toDouble, (x: Double) => x)
+      val sumSq = Fold((x: Int) => (x * x).toDouble, (x: Double) => x)
+      def length[A] = Fold((_: A) => 1.0, (x: Double) => x)
 
       val average: Fold[Int, Double] = (sum |@| length) map ((x, y) => x / y)
+      val variance: Fold[Int, Double] =
+        (sumSq |@| sum |@| length)
+          .map((sq, s, l) => sq / l - Math.pow(s / l, 2))
 
-      average.run(1,2,3) shouldEqual 2.0
+      val sd = variance.map(x => Math.sqrt(x))
+
+      val all: Fold[Int, (Double, Double, Double)] =
+        (average |@| variance |@| sd)
+          .map((a, v, s) => (a, v, s))
+
+      val (averageResult, varianceResult, stdDevResult) = all.run(1, 2, 3)
+
+      averageResult shouldEqual 2.0
+      stdDevResult shouldEqual 0.8164965809277263
+      varianceResult shouldEqual 0.666666666666667
     }
 
     "word count" in {
